@@ -50,7 +50,7 @@ function App() {
 
   // Handle tracking flow (Connect Live Folder)
   const handleTrackPath = async () => {
-    if (!projectPath) return;
+    if (!projectPath || projectPath.trim() === '') return;
     setIsGenerating(true)
     try {
       const res = await fetch(`${SERVER_URL}/track-project`, { 
