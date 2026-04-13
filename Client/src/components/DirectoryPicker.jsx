@@ -46,7 +46,7 @@ export default function DirectoryPicker({ isOpen, onClose, onSelect, serverUrl }
           <div>
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Folder className="w-5 h-5 text-purple-400" />
-              Select Project Folder
+              Choose Project Directory
             </h3>
             <p className="text-sm text-slate-400 mt-1 truncate max-w-full">
               {currentPath || "My Computer"}
@@ -105,7 +105,7 @@ export default function DirectoryPicker({ isOpen, onClose, onSelect, serverUrl }
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400" />
                 <input 
                   type="text" 
-                  placeholder="Filter folders..."
+                  placeholder="Search folders..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full bg-slate-950/50 border border-slate-800 rounded-lg py-1.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all"
@@ -149,7 +149,7 @@ export default function DirectoryPicker({ isOpen, onClose, onSelect, serverUrl }
                <div className="bg-slate-800 p-4 rounded-full mb-4">
                  <Search className="w-8 h-8" />
                </div>
-               <p>No subfolders found.</p>
+               <p>No matching folders available.</p>
              </div>
           )}
         </div>
@@ -164,7 +164,7 @@ export default function DirectoryPicker({ isOpen, onClose, onSelect, serverUrl }
               onClick={onClose}
               className="px-5 py-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
             >
-              Cancel
+              Close
             </button>
             <button 
               onClick={() => onSelect(currentPath)}
@@ -176,7 +176,7 @@ export default function DirectoryPicker({ isOpen, onClose, onSelect, serverUrl }
               }`}
             >
               <Check className="w-4 h-4" />
-              Select Folder
+              Confirm Selection
             </button>
           </div>
         </div>
