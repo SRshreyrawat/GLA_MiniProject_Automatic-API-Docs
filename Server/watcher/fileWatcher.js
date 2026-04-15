@@ -1,7 +1,7 @@
 const chokidar = require('chokidar');
 const path = require('path');
 const { readFileContent, readFilesRecursive } = require('../utils/fileReader');
-const generateDocs = require('../ai/geminiservice');
+const generateDocs = require('../ai/geminiService');
 const updateReadme = require('../utils/readmeUpdater');
 const fs = require('fs');
 
