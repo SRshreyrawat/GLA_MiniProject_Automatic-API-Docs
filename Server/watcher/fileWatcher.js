@@ -34,7 +34,7 @@ async function startWatcher(targetPath) {
 
     console.log("---------------------------------------------------------");
     console.log(`🚀 LIVE TRACKER ACTIVE: ${targetPath}`);
-    console.log(`🛡️  RATE LIMIT PROTECTION: 30s Cooldown Active`);
+    console.log(`🛡️  RATE LIMIT PROTECTION: 10s Cooldown Active`);
     console.log("---------------------------------------------------------");
 
     watcherInstance.on('all', (event, filePath) => {
@@ -118,3 +118,4 @@ async function startWatcher(targetPath) {
 }
 
 module.exports = { startWatcher };
+
