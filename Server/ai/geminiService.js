@@ -53,3 +53,4 @@ ${code}
 }
 
 module.exports = generateDocs;
+

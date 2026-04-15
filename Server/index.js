@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { startWatcher } = require('./watcher/fileWatcher');
 const { readFileContent, readFilesRecursive } = require('./utils/fileReader');
-const generateDocs = require('./ai/geminiservice');
+const generateDocs = require('./ai/geminiService');
 const updateReadme = require('./utils/readmeUpdater');
 
 const app = express();
@@ -131,8 +131,23 @@ app.get('/readme', (req, res) => {
 app.post('/track-project', async (req, res) => {
     const { targetPath } = req.body || {};
     
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath || typeof targetPath !== 'string') {
+        return res.status(400).json({ error: 'Invalid path provided.' });
+    }
+
+    if (!fs.existsSync(targetPath)) {
         return res.status(400).json({ error: 'Invalid path provided. Path does not exist.' });
+    }
+
+    let targetStats;
+    try {
+        targetStats = fs.statSync(targetPath);
+    } catch (error) {
+        return res.status(400).json({ error: 'Invalid path provided.' });
+    }
+
+    if (!targetStats.isDirectory()) {
+        return res.status(400).json({ error: 'Invalid path provided. Target must be a directory.' });
     }
 
     try {
@@ -182,3 +197,5 @@ app.post('/track-project', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+

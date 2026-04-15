@@ -1,7 +1,7 @@
 const chokidar = require('chokidar');
 const path = require('path');
 const { readFileContent, readFilesRecursive } = require('../utils/fileReader');
-const generateDocs = require('../ai/geminiservice');
+const generateDocs = require('../ai/geminiService');
 const updateReadme = require('../utils/readmeUpdater');
 const fs = require('fs');
 
@@ -34,7 +34,7 @@ async function startWatcher(targetPath) {
 
     console.log("---------------------------------------------------------");
     console.log(`🚀 LIVE TRACKER ACTIVE: ${targetPath}`);
-    console.log(`🛡️  RATE LIMIT PROTECTION: 30s Cooldown Active`);
+    console.log(`🛡️  RATE LIMIT PROTECTION: 10s Cooldown Active`);
     console.log("---------------------------------------------------------");
 
     watcherInstance.on('all', (event, filePath) => {
@@ -118,3 +118,4 @@ async function startWatcher(targetPath) {
 }
 
 module.exports = { startWatcher };
+
