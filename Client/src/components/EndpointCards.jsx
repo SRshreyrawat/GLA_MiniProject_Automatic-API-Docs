@@ -73,3 +73,4 @@ export default function EndpointCards({ endpoints }) {
     </div>
   )
 }
+
