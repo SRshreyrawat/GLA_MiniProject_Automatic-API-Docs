@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   Folder,
@@ -9,6 +9,20 @@ import {
   Check,
 } from "lucide-react";
 import PropTypes from "prop-types";
+
+/* 🔹 Helper: normalize path */
+const normalizePath = (path) => {
+  if (!path) return "";
+  return path.replace(/\\/g, "/");
+};
+
+/* 🔹 Helper: filter folders */
+const filterFoldersBySearch = (folders, search) => {
+  if (!search) return folders;
+  return folders.filter((f) =>
+    f.name.toLowerCase().includes(search.toLowerCase())
+  );
+};
 
 export default function DirectoryPicker({
   isOpen,
@@ -22,22 +36,29 @@ export default function DirectoryPicker({
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
 
+  const inputRef = useRef(null);
+
   /* 🔁 Fetch folders */
   const fetchFolders = async (path = "") => {
+    const normalized = normalizePath(path);
     setIsLoading(true);
-    try {
-      const res = await fetch(
-        `${serverUrl}/explorer?path=${encodeURIComponent(path)}`
-      );
-      const data = await res.json();
 
-      if (res.ok) {
-        setFolders(data.folders || []);
-        setCurrentPath(data.currentPath || "");
-        setParentPath(data.parentPath || "");
+    try {
+      const response = await fetch(
+        `${serverUrl}/explorer?path=${encodeURIComponent(normalized)}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch folders");
       }
-    } catch (err) {
-      console.error("Failed to fetch folders:", err);
+
+      const data = await response.json();
+
+      setFolders(data.folders || []);
+      setCurrentPath(data.currentPath || "");
+      setParentPath(data.parentPath || "");
+    } catch (error) {
+      console.error("Directory fetch error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -50,20 +71,33 @@ export default function DirectoryPicker({
     }
   }, [isOpen]);
 
-  /* 🔍 Filtered folders (optimized) */
+  /* ⌨️ ESC to close */
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  /* 🔍 Auto-focus search */
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  /* 🔍 Filtered folders */
   const filteredFolders = useMemo(() => {
-    return folders.filter((f) =>
-      f.name.toLowerCase().includes(search.toLowerCase())
-    );
+    return filterFoldersBySearch(folders, search);
   }, [folders, search]);
 
   /* ⛔ Don't render if closed */
   if (!isOpen) return null;
 
-  /* 📂 Breadcrumb generator */
-  const pathParts = currentPath
-    .split(/[\\\/]/)
-    .filter((p) => p);
+  /* 📂 Breadcrumb */
+  const pathParts = currentPath.split(/[\\\/]/).filter((p) => p);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -73,10 +107,10 @@ export default function DirectoryPicker({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-2xl h-[600px] bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-        
+      <div className="relative w-full max-w-2xl h-[600px] bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Folder className="w-5 h-5 text-purple-400" />
@@ -89,8 +123,7 @@ export default function DirectoryPicker({
 
           <button
             onClick={onClose}
-            aria-label="Close"
-            className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white"
+            className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white"
           >
             <X className="w-6 h-6" />
           </button>
@@ -98,21 +131,18 @@ export default function DirectoryPicker({
 
         {/* Navigation */}
         <div className="bg-slate-800/30 border-b border-slate-800 flex flex-col">
-          
+
           {/* Breadcrumb */}
           <div className="p-4 flex items-center gap-3">
             <button
               onClick={() => fetchFolders("")}
-              title="This PC"
-              className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors flex-shrink-0"
+              className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white"
             >
               <HardDrive className="w-5 h-5" />
             </button>
 
-            <div className="flex-1 flex items-center gap-1 overflow-x-auto text-sm py-1">
-              <span className="text-slate-500 whitespace-nowrap">
-                This PC
-              </span>
+            <div className="flex-1 flex items-center gap-1 overflow-x-auto text-sm">
+              <span className="text-slate-500">This PC</span>
 
               {pathParts.map((part, i) => {
                 const path =
@@ -124,7 +154,7 @@ export default function DirectoryPicker({
                     <ChevronRight className="w-3 h-3 text-slate-600" />
                     <button
                       onClick={() => fetchFolders(path)}
-                      className="text-slate-300 hover:text-white px-1 rounded"
+                      className="text-slate-300 hover:text-white"
                     >
                       {part}
                     </button>
@@ -133,21 +163,30 @@ export default function DirectoryPicker({
               })}
             </div>
 
-            {/* Back button */}
             {currentPath && (
               <button
                 onClick={() => fetchFolders(parentPath)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-white flex items-center gap-2 text-xs font-bold transition-all group"
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded text-white text-xs"
               >
-                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                <ArrowLeft className="w-3 h-3 inline mr-1" />
                 Back
               </button>
             )}
           </div>
 
-          {/* Search */}
+          {/* 🔍 Search */}
           <div className="px-4 pb-4">
-
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Search folders..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder:text-slate-500"
+              />
+            </div>
           </div>
         </div>
 
@@ -163,53 +202,59 @@ export default function DirectoryPicker({
                 <button
                   key={folder.path}
                   onClick={() => fetchFolders(folder.path)}
-                  className="group w-full flex items-center justify-between p-3 rounded-xl hover:bg-purple-600/10 border border-transparent hover:border-purple-500/20 transition-all text-left"
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-purple-600/10"
                 >
                   <div className="flex items-center gap-3">
                     {folder.isDrive ? (
                       <HardDrive className="w-5 h-5 text-blue-400" />
                     ) : (
-                      <Folder className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
+                      <Folder className="w-5 h-5 text-slate-400" />
                     )}
-                    <span className="text-sm font-medium text-slate-200 group-hover:text-white">
+                    <span className="text-sm text-slate-200">
                       {folder.name}
                     </span>
                   </div>
 
-                  <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="w-4 h-4 text-slate-600" />
                 </button>
               ))}
             </div>
           ) : (
-
+            <div className="h-full flex flex-col items-center justify-center text-slate-500">
+              <Folder className="w-10 h-10 mb-3 opacity-40" />
+              <p className="text-sm">
+                {search ? "No matching folders found" : "No folders available"}
+              </p>
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="mt-2 text-xs text-purple-400"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 flex justify-between items-center bg-slate-900/80 backdrop-blur">
-          <div className="text-xs text-slate-500 font-mono truncate max-w-[50%]">
+        <div className="p-4 border-t border-slate-800 flex justify-between items-center">
+          <div className="text-xs text-slate-500">
             Selection: {currentPath || "Root"}
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-5 py-2 text-sm font-semibold text-slate-400 hover:text-white"
-            >
+            <button onClick={onClose} className="text-slate-400">
               Close
             </button>
 
             <button
               onClick={() => onSelect(currentPath)}
               disabled={!currentPath}
-              className={`px-6 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all ${
-                !currentPath
-                  ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                  : "bg-purple-600 hover:bg-purple-500 text-white"
-              }`}
+              className="px-4 py-2 bg-purple-600 text-white rounded-xl disabled:bg-slate-700"
             >
-              <Check className="w-4 h-4" />
-              Confirm Selection
+              <Check className="w-4 h-4 inline mr-1" />
+              Confirm
             </button>
           </div>
         </div>
