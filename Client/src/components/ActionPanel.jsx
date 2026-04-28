@@ -1,5 +1,23 @@
-import { Sparkles, FolderOpen, CheckCircle2, Terminal, MousePointer2 } from "lucide-react";
+import {
+  Sparkles,
+  FolderOpen,
+  CheckCircle2,
+  Terminal,
+  MousePointer2,
+  Loader2,
+} from "lucide-react";
 import PropTypes from "prop-types";
+
+/* 🔹 Helper: format last updated label */
+const getStatusText = (lastUpdated) => {
+  if (!lastUpdated) return "Idle";
+  return "Live Sync Active";
+};
+
+/* 🔹 Helper: button label */
+const getButtonLabel = (isGenerating) => {
+  return isGenerating ? "Connecting Tracker..." : "Start Live Tracking";
+};
 
 export default function ActionPanel({
   onTrack,
@@ -19,7 +37,7 @@ export default function ActionPanel({
 
   return (
     <div className="glass-card rounded-2xl p-6 flex flex-col gap-6 relative overflow-hidden group">
-      
+
       {/* Background Glow */}
       <div className="absolute -inset-10 bg-gradient-to-br from-purple-600/20 to-blue-600/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
 
@@ -29,8 +47,11 @@ export default function ActionPanel({
           <Sparkles className="w-5 h-5 text-purple-400" />
           Live Documentation Engine
         </h2>
-        <p className="text-sm text-slate-400">
 
+        {/* ✅ Added description */}
+        <p className="text-sm text-slate-400 leading-relaxed">
+          Connect your local project folder and automatically generate live API
+          documentation. Changes in your code will be tracked and synced in real-time.
         </p>
       </div>
 
@@ -40,7 +61,12 @@ export default function ActionPanel({
           onClick={onBrowse}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && onBrowse()}
+          aria-label="Select project folder"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              onBrowse();
+            }
+          }}
           className={`${baseSelectorStyles} ${selectorStateStyles}`}
         >
           {/* Gradient Overlay */}
@@ -64,12 +90,18 @@ export default function ActionPanel({
                   : "text-slate-400 group-hover/selector:text-slate-100"
               }`}
             >
-              {projectPath ? "Project Folder Selected" : "Select Project Folder"}
+              {projectPath
+                ? "Project Folder Selected"
+                : "Select Project Folder"}
             </span>
 
-            {projectPath && (
+            {projectPath ? (
               <span className="block text-[10px] text-emerald-500/80 mt-1 font-mono truncate max-w-[240px]">
                 {projectPath}
+              </span>
+            ) : (
+              <span className="block text-[10px] text-slate-500 mt-1">
+                Click to browse your system
               </span>
             )}
           </div>
@@ -83,9 +115,15 @@ export default function ActionPanel({
         {/* Selected Location Bar */}
         {projectPath && (
           <div className="flex justify-between items-center bg-slate-900/40 p-3 rounded-xl border border-slate-800/50">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Selected Location
-            </span>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Selected Location
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono truncate max-w-[200px]">
+                {projectPath}
+              </span>
+            </div>
+
             <button
               onClick={onBrowse}
               className="text-[10px] font-black text-purple-400 hover:text-purple-300 uppercase tracking-widest"
@@ -108,15 +146,21 @@ export default function ActionPanel({
       >
         {isGenerating ? (
           <>
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Connecting Tracker...
+            <Loader2 className="w-5 h-5 animate-spin" />
+            {getButtonLabel(true)}
           </>
         ) : (
           <>
-
+            <Terminal className="w-5 h-5" />
+            {getButtonLabel(false)}
           </>
         )}
       </button>
+
+      {/* Status */}
+      <div className="text-[10px] text-slate-500 text-center">
+        Status: {getStatusText(lastUpdated)}
+      </div>
 
       {/* Live Tracker Status */}
       {lastUpdated && !isGenerating && (
