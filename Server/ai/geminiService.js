@@ -45,6 +45,7 @@ ${code}
 
     const response = JSON.parse(text);
     return response;
+    //comments for new function ahead
 
   } catch (err) {
     console.error("Gemini Error:", err);
