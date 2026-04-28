@@ -152,3 +152,4 @@ export default function MarkdownViewer({ content = "" }) {
 MarkdownViewer.propTypes = {
   content: PropTypes.string,
 };
+//new functions soon
