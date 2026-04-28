@@ -1,121 +1,203 @@
-const chokidar = require('chokidar');
-const path = require('path');
-const { readFileContent, readFilesRecursive } = require('../utils/fileReader');
-const generateDocs = require('../ai/geminiService');
-const updateReadme = require('../utils/readmeUpdater');
-const fs = require('fs');
+const chokidar = require("chokidar");
+const path = require("path");
+const fs = require("fs");
+
+const { readFilesRecursive } = require("../utils/fileReader");
+const generateDocs = require("../ai/geminiService");
+const updateReadme = require("../utils/readmeUpdater");
+
+/* =========================
+   🔹 CONFIG
+========================= */
+
+const VALID_EXTENSIONS = [".js", ".ts", ".jsx", ".tsx", ".json"];
+const MAX_FILE_SIZE = 200 * 1024; // 200KB
+const COOLDOWN_PERIOD = 10000; // 10s
+
+/* =========================
+   🔹 STATE
+========================= */
 
 let watcherInstance = null;
 let timeout = null;
-
-// Rate Limit Protection State
 let isGenerating = false;
 let lastGenerationTime = 0;
-const COOLDOWN_PERIOD = 10000; // 30 seconds (Max 2 updates per minute)
 
-async function startWatcher(targetPath) {
-    if (watcherInstance) {
-        console.log("Closing previous watcher...");
-        watcherInstance.close();
-    }
+let stats = {
+  totalRuns: 0,
+  filesProcessed: 0,
+  lastRunDuration: 0,
+};
 
-    console.log(`\n\n[Live Tracker] Initializing recursive watch for: ${targetPath}`);
-    
-    watcherInstance = chokidar.watch(targetPath, {
-        ignored: [
-            /(^|[\/\\])\../, // ignore dotfiles
-            /node_modules/,
-            /README\.md/,
-            /endpoints\.json/
-        ],
-        persistent: true,
-        ignoreInitial: true
-    });
+/* =========================
+   🔹 HELPERS
+========================= */
 
-    console.log("---------------------------------------------------------");
-    console.log(`🚀 LIVE TRACKER ACTIVE: ${targetPath}`);
-    console.log(`🛡️  RATE LIMIT PROTECTION: 10s Cooldown Active`);
-    console.log("---------------------------------------------------------");
-
-    watcherInstance.on('all', (event, filePath) => {
-        const relativePath = path.relative(targetPath, filePath);
-        
-        // Skip if currently generating to prevent queue buildup
-        if (isGenerating) return;
-
-        // Skip if still in cooldown period
-        const now = Date.now();
-        const timeSinceLastUpdate = now - lastGenerationTime;
-        if (timeSinceLastUpdate < COOLDOWN_PERIOD) {
-            const remaining = Math.ceil((COOLDOWN_PERIOD - timeSinceLastUpdate) / 1000);
-            // Throttle logging the cooldown message
-            if (!timeout) {
-                 console.log(`\n[CHANGE] ${relativePath} (Cooldown Active: Next update in ${remaining}s)`);
-            }
-        } else {
-             console.log(`\n[${event.toUpperCase()}] ${relativePath}`);
-        }
-
-        // Debounce documentation generation
-        clearTimeout(timeout);
-        timeout = setTimeout(async () => {
-            const startTime = Date.now();
-            const elapsed = startTime - lastGenerationTime;
-
-            if (elapsed < COOLDOWN_PERIOD) {
-                const wait = COOLDOWN_PERIOD - elapsed;
-                console.log(`⏳ Waiting ${Math.ceil(wait / 1000)}s more to respect 15 RPM rate limit...`);
-                // Reschedule for after cooldown
-                timeout = setTimeout(() => watcherInstance.emit('change', filePath), wait);
-                return;
-            }
-
-            console.log("🔄 Changes detected. Re-analyzing project tree...");
-            isGenerating = true;
-
-            try {
-                // Recursive scan for documentation files
-                const projectFiles = await readFilesRecursive(targetPath);
-                let combinedCode = "";
-
-                for (let file of projectFiles) {
-                    const content = fs.readFileSync(file, 'utf-8');
-                    if (!content) continue;
-                    combinedCode += `\n// File: ${path.relative(targetPath, file)}\n${content}\n`;
-                }
-
-                if (combinedCode.trim() === "") {
-                    console.log("⚠️ No relevant code found to document.");
-                    isGenerating = false;
-                    return;
-                }
-
-                console.log(`💎 AI is re-generating documentation for ${projectFiles.length} files...`);
-                const response = await generateDocs(combinedCode);
-
-                const readmePath = path.join(targetPath, 'README.md');
-                updateReadme(response.readme, readmePath);
-
-                const endpointsPath = path.join(targetPath, 'endpoints.json');
-                fs.writeFileSync(endpointsPath, JSON.stringify(response.endpoints, null, 2));
-                
-                lastGenerationTime = Date.now();
-                console.log("✅ LIVE UPDATE COMPLETE.");
-                console.log(`🕒 Next update allowed after 30 seconds.`);
-                console.log("---------------------------------------------------------");
-
-            } catch (err) {
-                console.error("❌ ERROR during background update:", err);
-            } finally {
-                isGenerating = false;
-                timeout = null;
-            }
-
-        }, 5000); // Increased debounce to 5 seconds for more natural batching
-    });
-
-    watcherInstance.on('error', error => console.log(`[Watcher Error]: ${error}`));
+function isValidFile(file) {
+  return VALID_EXTENSIONS.includes(path.extname(file));
 }
 
-module.exports = { startWatcher };
+function isFileSizeValid(file) {
+  try {
+    const stats = fs.statSync(file);
+    return stats.size <= MAX_FILE_SIZE;
+  } catch {
+    return false;
+  }
+}
 
+/* 🔹 Logging */
+function logInfo(msg) {
+  console.log(`ℹ️ ${msg}`);
+}
+
+function logSuccess(msg) {
+  console.log(`✅ ${msg}`);
+}
+
+function logError(msg, err) {
+  console.error(`❌ ${msg}`, err);
+}
+
+/* =========================
+   🔹 CORE GENERATION LOGIC
+========================= */
+
+async function generateDocumentation(targetPath) {
+  const startTime = Date.now();
+  stats.totalRuns++;
+
+  try {
+    logInfo("Scanning project files...");
+
+    const projectFiles = await readFilesRecursive(targetPath);
+    let combinedCode = "";
+
+    for (let file of projectFiles) {
+      if (!isValidFile(file)) continue;
+      if (!isFileSizeValid(file)) {
+        logInfo(`Skipping large file: ${file}`);
+        continue;
+      }
+
+      const content = fs.readFileSync(file, "utf-8");
+      if (!content) continue;
+
+      combinedCode += `\n// File: ${path.relative(targetPath, file)}\n${content}\n`;
+    }
+
+    if (!combinedCode.trim()) {
+      logInfo("No valid code found.");
+      return;
+    }
+
+    stats.filesProcessed = projectFiles.length;
+
+    logInfo(`Generating docs for ${stats.filesProcessed} files...`);
+
+    const response = await generateDocs(combinedCode);
+
+    updateReadme(response.readme, path.join(targetPath, "README.md"));
+
+    fs.writeFileSync(
+      path.join(targetPath, "endpoints.json"),
+      JSON.stringify(response.endpoints, null, 2)
+    );
+
+    stats.lastRunDuration = Date.now() - startTime;
+
+    logSuccess("Documentation updated successfully");
+
+    console.log(
+      `📊 Stats → Runs: ${stats.totalRuns}, Files: ${stats.filesProcessed}, Time: ${stats.lastRunDuration}ms`
+    );
+  } catch (err) {
+    logError("Generation failed", err);
+
+    if (err.message && err.message.includes("rate")) {
+      console.log("⚠️ Rate limit hit. Retrying later...");
+    }
+  }
+}
+
+/* =========================
+   🔹 WATCHER
+========================= */
+
+async function startWatcher(targetPath) {
+  if (watcherInstance) {
+    logInfo("Closing previous watcher...");
+    watcherInstance.close();
+  }
+
+  logInfo(`Starting watcher on: ${targetPath}`);
+
+  watcherInstance = chokidar.watch(targetPath, {
+    ignored: [
+      /(^|[\/\\])\../,
+      /node_modules/,
+      /README\.md/,
+      /endpoints\.json/,
+    ],
+    persistent: true,
+    ignoreInitial: true,
+  });
+
+  console.log("--------------------------------------------------");
+  console.log(`🚀 LIVE TRACKER ACTIVE`);
+  console.log(`🛡️ Cooldown: ${COOLDOWN_PERIOD / 1000}s`);
+  console.log("--------------------------------------------------");
+
+  watcherInstance.on("all", (event, filePath) => {
+    const relativePath = path.relative(targetPath, filePath);
+
+    if (isGenerating) return;
+
+    const now = Date.now();
+    const elapsed = now - lastGenerationTime;
+
+    if (elapsed < COOLDOWN_PERIOD) {
+      const remaining = Math.ceil((COOLDOWN_PERIOD - elapsed) / 1000);
+      if (!timeout) {
+        console.log(`⏳ Cooldown (${remaining}s) → ${relativePath}`);
+      }
+      return;
+    }
+
+    console.log(`\n[${event.toUpperCase()}] ${relativePath}`);
+
+    clearTimeout(timeout);
+
+    timeout = setTimeout(async () => {
+      isGenerating = true;
+
+      await generateDocumentation(targetPath);
+
+      lastGenerationTime = Date.now();
+      isGenerating = false;
+      timeout = null;
+    }, 5000);
+  });
+
+  watcherInstance.on("error", (err) =>
+    logError("Watcher error", err)
+  );
+}
+
+/* =========================
+   🔹 MANUAL TRIGGER
+========================= */
+
+async function triggerManualUpdate(targetPath) {
+  logInfo("Manual trigger started...");
+  await generateDocumentation(targetPath);
+}
+
+/* =========================
+   🔹 EXPORTS
+========================= */
+
+module.exports = {
+  startWatcher,
+  triggerManualUpdate,
+};
