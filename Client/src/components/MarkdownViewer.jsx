@@ -84,7 +84,4 @@ export default function MarkdownViewer({ content = "" }) {
   );
 }
 
-/* ✅ Prop Types */
-MarkdownViewer.propTypes = {
-  content: PropTypes.string,
-};
+

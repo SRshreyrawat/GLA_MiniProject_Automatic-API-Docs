@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const generateDocs = require('./ai/geminiservice');
+const generateDocs = require('./ai/geminiService');
 const updateReadme = require('./utils/readmeUpdater');
 
 const PROJECTS_PATH = path.join(__dirname, '../projects');

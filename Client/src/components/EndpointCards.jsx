@@ -90,13 +90,4 @@ export default function EndpointCards({ endpoints = [] }) {
   );
 }
 
-/* ✅ Prop Types */
-EndpointCards.propTypes = {
-  endpoints: PropTypes.arrayOf(
-    PropTypes.shape({
-      method: PropTypes.string,
-      path: PropTypes.string,
-      description: PropTypes.string,
-    })
-  ),
-};
+<
